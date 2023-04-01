@@ -19,15 +19,14 @@ def sympy_cell_line_lists(cell: str) -> List[List[str]]:
     Converts sympy cell to list of lists of str
     """
     raw_lines = cell.split("\n")
-    raw_line_components = [[elem.strip() for elem in line.split("=")] for line in raw_lines]
-    return raw_line_components
+    return [[elem.strip() for elem in line.split("=")] for line in raw_lines]
 
 def test_sympy_parents(sympy_cls: str, parents: tuple) -> bool:
     """
     Returns True if 'sympy_cls' is in 'bases'.
     False, otherwise.
     """
-    return any([sympy_cls in str(parent) for parent in parents])
+    return any(sympy_cls in str(parent) for parent in parents)
 
 
 def test_for_sympy_expr(obj_str: str, var_dict: dict) -> bool:
@@ -68,9 +67,7 @@ def get_sympy_obj(obj_str: str, var_dict: dict) -> Any:
     Returns the object represented by 'obj_str' from 'var_dict'
     """
     sp_obj = var_dict[obj_str]
-    if isinstance(sp_obj, list) and len(sp_obj) == 1:
-        return sp_obj[0]
-    return sp_obj
+    return sp_obj[0] if isinstance(sp_obj, list) and len(sp_obj) == 1 else sp_obj
         
 
 
@@ -91,10 +88,10 @@ def convert_sympy_cell_to_py_cell(cell: str, var_dict: dict) -> str:
                 sym_obj = get_sympy_obj(obj_str, var_dict)
                 lhs = sym_obj.lhs
                 rhs = sym_obj.rhs
-                acc.append(str(lhs) + "=" + str(rhs))
+                acc.append(f"{str(lhs)}={str(rhs)}")
             elif test_for_sympy_expr(obj_str, var_dict):
                 sym_obj = get_sympy_obj(obj_str, var_dict)
-                acc.append(lhs + "=" + str(sym_obj))
+                acc.append(f"{lhs}={str(sym_obj)}")
             else:
                 acc.append(line)
         else:
@@ -103,12 +100,12 @@ def convert_sympy_cell_to_py_cell(cell: str, var_dict: dict) -> str:
                 sym_obj = get_sympy_obj(obj_str, var_dict)
                 lhs = sym_obj.lhs
                 rhs = sym_obj.rhs
-                acc.append(str(lhs) + "=" + str(rhs))
+                acc.append(f"{str(lhs)}={str(rhs)}")
             elif test_for_sympy_expr(obj_str, var_dict):
                 raise ValueError(f"The result of a sympy expr must be assigned to a new variable, e.g. x = {line}")
             else:
                 acc.append(line)
-        #except:
-        #    raise ValueError(f"%%render sympy: Should only be used for a cell filled with sympy objects, not: {line}")
+            #except:
+            #    raise ValueError(f"%%render sympy: Should only be used for a cell filled with sympy objects, not: {line}")
     return "\n".join(acc) 
     

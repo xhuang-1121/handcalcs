@@ -232,7 +232,7 @@ def create_param_cell(
     Returns a ParameterCell.
     """
     comment_tag_removed = strip_cell_code(raw_source)
-    cell = ParameterCell(
+    return ParameterCell(
         source=comment_tag_removed,
         calculated_results=calculated_result,
         lines=deque([]),
@@ -240,7 +240,6 @@ def create_param_cell(
         cols=3,
         latex_code="",
     )
-    return cell
 
 
 def create_long_cell(
@@ -250,14 +249,13 @@ def create_long_cell(
     Returns a LongCalcCell.
     """
     comment_tag_removed = strip_cell_code(raw_source)
-    cell = LongCalcCell(
+    return LongCalcCell(
         source=comment_tag_removed,
         calculated_results=calculated_result,
         lines=deque([]),
         precision=precision,
         latex_code="",
     )
-    return cell
 
 
 def create_short_cell(
@@ -267,14 +265,13 @@ def create_short_cell(
     Returns a ShortCell
     """
     comment_tag_removed = strip_cell_code(raw_source)
-    cell = ShortCalcCell(
+    return ShortCalcCell(
         source=comment_tag_removed,
         calculated_results=calculated_result,
         lines=deque([]),
         precision=precision,
         latex_code="",
     )
-    return cell
 
 
 def create_symbolic_cell(
@@ -284,14 +281,13 @@ def create_symbolic_cell(
     Returns a SymbolicCell
     """
     comment_tag_removed = strip_cell_code(raw_source)
-    cell = SymbolicCell(
+    return SymbolicCell(
         source=comment_tag_removed,
         calculated_results=calculated_result,
         lines=deque([]),
         precision=precision,
         latex_code="",
     )
-    return cell
 
 
 def create_calc_cell(
@@ -300,14 +296,13 @@ def create_calc_cell(
     """
     Returns a CalcCell
     """
-    cell = CalcCell(
+    return CalcCell(
         source=raw_source,
         calculated_results=calculated_result,
         precision=precision,
         lines=deque([]),
         latex_code="",
     )
-    return cell
 
 
 def categorize_raw_cell(
@@ -408,39 +403,31 @@ def categorize_line(
         comment = ""
     categorized_line = None
 
-    # Override behaviour
-    if not test_for_blank_line(line):  # True is a blank line
-        if override == "parameter":
-            categorized_line = ParameterLine(
-                split_parameter_line(line, calculated_results), comment, ""
-            )
-            return categorized_line
-
-        elif override == "long":
-            if test_for_parameter_line(
-                line
-            ):  # A parameter can exist in a long cell, too
-                categorized_line = ParameterLine(
+    if override == "long":
+        if not test_for_blank_line(line):
+            return (
+                ParameterLine(
                     split_parameter_line(line, calculated_results), comment, ""
                 )
-            else:
-                categorized_line = LongCalcLine(
-                    expr_parser(line), comment, ""
-                )  # code_reader
-            return categorized_line
-        elif override == "symbolic":
-            categorized_line = SymbolicLine(
-                expr_parser(line), comment, ""
-            )  # code_reader
-            return categorized_line
-        elif override == "short":
-            categorized_line = CalcLine(expr_parser(line), comment, "")  # code_reader
-            return categorized_line
-        elif True:
-            pass  # Future override conditions to match new cell types can be put here
-
+                if test_for_parameter_line(line)
+                else LongCalcLine(expr_parser(line), comment, "")
+            )
+    elif override == "parameter":
+        if not test_for_blank_line(line):
+            return ParameterLine(
+                split_parameter_line(line, calculated_results), comment, ""
+            )
+    elif override == "short":
+        if not test_for_blank_line(line):
+            return CalcLine(expr_parser(line), comment, "")
+    elif override == "symbolic":
+        if not test_for_blank_line(line):
+            return SymbolicLine(expr_parser(line), comment, "")
     # Standard behaviour
-    if line == "\n" or line == "":
+    if line == "\n":
+        categorized_line = BlankLine(line, "", "")
+
+    elif line == "":
         categorized_line = BlankLine(line, "", "")
 
     elif test_for_parameter_line(line):
@@ -652,10 +639,9 @@ def convert_conditional(line, calculated_results):
         line.expressions,
         line.raw_condition,
     )
-    true_condition_deque = swap_conditional(
+    if true_condition_deque := swap_conditional(
         condition, condition_type, raw_condition, calculated_results
-    )
-    if true_condition_deque:
+    ):
         line.true_condition = true_condition_deque
         for expression in expressions:
             line.true_expressions.append(convert_line(expression, calculated_results))
@@ -907,10 +893,7 @@ def convert_applicable_long_lines(
 
 @convert_applicable_long_lines.register(CalcLine)
 def convert_calc_to_long(line: CalcLine):
-    if test_for_long_lines(line):
-
-        return convert_calc_line_to_long(line)
-    return line
+    return convert_calc_line_to_long(line) if test_for_long_lines(line) else line
 
 
 @convert_applicable_long_lines.register(LongCalcLine)
@@ -998,37 +981,26 @@ def test_for_long_calc_lines(line: CalcLine) -> bool:
         elif "\\" not in item or "{" not in item:
             item_length = len(item)
 
-        elif "{" in item:  # Check for other latex operators that use { }
+        else:
             stack += 1
 
-        else:  # Assume the latex command adds at least one character, e.g. \left( or \cdot
-            total_length += 1
-            continue
-
-        if item == "\\frac{" or item == "}{":  # If entering into a fraction
-            fraction_discount = (
-                fraction_count
-                if fraction_count > fraction_discount
-                else fraction_discount
-            )
+        if item == "\\frac{":
+            fraction_discount = max(fraction_count, fraction_discount)
             fraction_count = 0
             fraction_flag = True
-            if item == "\\frac{":
-                stack_location = stack  # Mark where the fraction is in relation to the other "{" operators
-                stack += 1
+            stack_location = stack  # Mark where the fraction is in relation to the other "{" operators
+            stack += 1
 
-        elif (  # Check for closing of misc latex operators, which may include a fraction
-            item == "}"
-        ):
+        elif item == "}":
             stack -= 1
             if stack == stack_location:
                 fraction_flag == False
-                fraction_discount = (
-                    fraction_count
-                    if fraction_count > fraction_discount
-                    else fraction_discount
-                )
+                fraction_discount = max(fraction_count, fraction_discount)
 
+        elif item == "}{":
+            fraction_discount = max(fraction_count, fraction_discount)
+            fraction_count = 0
+            fraction_flag = True
         if fraction_flag == True:
             fraction_count += item_length
 
@@ -1073,7 +1045,7 @@ def format_calc_line(line: CalcLine) -> CalcLine:
     if line.comment:
         comment_space = "\\;"
         comment = format_strings(line.comment, comment=True)
-    line.latex = f"{latex_code[0:second_equals + 1]}{latex_code[second_equals + 2:]}{comment_space}{comment}\n"
+    line.latex = f"{latex_code[:second_equals + 1]}{latex_code[second_equals + 2:]}{comment_space}{comment}\n"
     return line
 
 
@@ -1102,10 +1074,10 @@ def format_conditional_line(line: ConditionalLine) -> ConditionalLine:
             outgoing.append((format_lines(calc_line)).latex)
         latex_exprs = line_break.join(outgoing)
         line.latex = first_line + latex_exprs
-        return line
     else:
         line.latex = ""
-        return line
+
+    return line
 
 
 @format_lines.register(LongCalcLine)
@@ -1215,9 +1187,7 @@ def test_for_parameter_cell(raw_python_source: str) -> bool:
     of 'row_python_source'. False, otherwise.
     """
     first_element = raw_python_source.split("\n")[0]
-    if "#" in first_element and "parameter" in first_element.lower():
-        return True
-    return False
+    return "#" in first_element and "parameter" in first_element.lower()
 
 
 def test_for_long_cell(raw_python_source: str) -> bool:
@@ -1226,9 +1196,7 @@ def test_for_long_cell(raw_python_source: str) -> bool:
     `raw_python_source`. False otherwise.
     """
     first_element = raw_python_source.split("\n")[0]
-    if "#" in first_element and "long" in first_element.lower():
-        return True
-    return False
+    return "#" in first_element and "long" in first_element.lower()
 
 
 def test_for_short_cell(raw_python_source: str) -> bool:
@@ -1237,9 +1205,7 @@ def test_for_short_cell(raw_python_source: str) -> bool:
     `raw_python_source`. False otherwise.
     """
     first_element = raw_python_source.split("\n")[0]
-    if "#" in first_element and "short" in first_element.lower():
-        return True
-    return False
+    return "#" in first_element and "short" in first_element.lower()
 
 
 def test_for_symbolic_cell(raw_python_source: str) -> bool:
@@ -1248,9 +1214,7 @@ def test_for_symbolic_cell(raw_python_source: str) -> bool:
     `raw_python_source`. False otherwise.
     """
     first_element = raw_python_source.split("\n")[0]
-    if "#" in first_element and "symbolic" in first_element.lower():
-        return True
-    return False
+    return "#" in first_element and "symbolic" in first_element.lower()
 
 
 def test_for_blank_line(source: str) -> bool:
@@ -1293,9 +1257,7 @@ def test_for_scientific_notation_str(elem: str) -> bool:
     except:
         pass
 
-    if "e" in str(elem).lower() and test_for_float:
-        return True
-    return False
+    return "e" in elem.lower() and test_for_float
 
 
 def test_for_small_float(elem: Any, precision: int) -> bool:
@@ -1311,10 +1273,7 @@ def test_for_small_float(elem: Any, precision: int) -> bool:
         left, _right = elem_as_str.split(".")
         if left != "0":
             return False
-    if len(elem_as_str.replace("0", "").replace(".", "")) < precision:
-        return True
-    else:
-        return False
+    return len(elem_as_str.replace("0", "").replace(".", "")) < precision
 
 
 def split_parameter_line(line: str, calculated_results: dict) -> deque:
@@ -1323,8 +1282,7 @@ def split_parameter_line(line: str, calculated_results: dict) -> deque:
         deque([<parameter>, "&=", <value>])
     """
     param = line.replace(" ", "").split("=", 1)[0]
-    param_line = deque([param, "=", calculated_results[param]])
-    return param_line
+    return deque([param, "=", calculated_results[param]])
 
 
 def format_strings(string: str, comment: bool) -> deque:
@@ -1342,13 +1300,11 @@ def format_strings(string: str, comment: bool) -> deque:
         l_par = "("
         r_par = ")"
         text_env = "\\;\\textrm{"
-        end_env = "}"
     else:
         l_par = ""
         r_par = ""
         text_env = "\\textrm{"
-        end_env = "}"
-
+    end_env = "}"
     return "".join([text_env, l_par, string.strip().rstrip(), r_par, end_env])
 
 
@@ -1399,8 +1355,7 @@ def latex_repr(item: Any) -> str:
     elif hasattr(item, "__len__") and not isinstance(item, (str, dict, tuple)):
         comma_space = ",\\ "
         try:
-            array = "[" + comma_space.join([str(v) for v in item]) + "]"
-            return array
+            return f"[{comma_space.join([str(v) for v in item])}]"
         except TypeError:
             return str(item)
 
@@ -1432,11 +1387,11 @@ class ConditionalEvaluator:
             and self.check_prev_cond_type(conditional_type)
             and not self.prev_result
         ):
-            l_par = "\\left("
-            r_par = "\\right)"
             if conditional_type != "else":
                 symbolic_portion = swap_symbolic_calcs(conditional, calc_results)
                 numeric_portion = swap_numeric_calcs(conditional, calc_results)
+                l_par = "\\left("
+                r_par = "\\right)"
                 resulting_latex = (
                     symbolic_portion
                     + deque(["\\rightarrow"])
@@ -1464,11 +1419,7 @@ class ConditionalEvaluator:
         """
         prev = self.prev_cond_type
         current = cond_type
-        if prev == "else":
-            return False
-        elif prev == "elif" and current == "if":
-            return False
-        return True
+        return prev != "else" and (prev != "elif" or current != "if")
 
 
 swap_conditional = (
@@ -1549,29 +1500,28 @@ def swap_integrals(d: deque, calc_results: dict) -> deque:
     rendered as an integral.
     """
     swapped_deque = deque([])
-    if "integrate" == d[0] or "quad" == d[0]:
-        args_deque = d[1]
-        function_name = args_deque[0]
-        function = calc_results.get(function_name, function_name)
-        function_source = (
-            inspect.getsource(function).split("\n")[1].replace("return", "")
-        )
-        d_var = (
-            str(inspect.signature(function))
-            .replace("(", "")
-            .replace(")", "")
-            .replace(" ", "")
-            .split(":")[0]
-        )
-        source_deque = expr_parser(function_source)
-        a = args_deque[2]
-        b = args_deque[4]
-        swapped_deque += deque(["\\int_{", a, "}", "^", "{", b, "}"])
-        swapped_deque.append(source_deque)
-        swapped_deque.append(f"\\; d{d_var}")
-        return swapped_deque
-    else:
+    if d[0] not in ["integrate", "quad"]:
         return d
+    args_deque = d[1]
+    function_name = args_deque[0]
+    function = calc_results.get(function_name, function_name)
+    function_source = (
+        inspect.getsource(function).split("\n")[1].replace("return", "")
+    )
+    d_var = (
+        str(inspect.signature(function))
+        .replace("(", "")
+        .replace(")", "")
+        .replace(" ", "")
+        .split(":")[0]
+    )
+    source_deque = expr_parser(function_source)
+    a = args_deque[2]
+    b = args_deque[4]
+    swapped_deque += deque(["\\int_{", a, "}", "^", "{", b, "}"])
+    swapped_deque.append(source_deque)
+    swapped_deque.append(f"\\; d{d_var}")
+    return swapped_deque
 
 
 def flatten_deque(d: deque) -> deque:
@@ -1630,7 +1580,7 @@ def expr_parser(line: str) -> list:
     sys.setrecursionlimit(3000)
     pp.ParserElement.enablePackrat()
 
-    variable = pp.Word(pp.alphanums + "_.")
+    variable = pp.Word(f"{pp.alphanums}_.")
     numbers = pp.pyparsing_common.fnumber.setParseAction("".join)
     imag = pp.Literal("j")
     plusminus = pp.oneOf("+ -")
@@ -1692,16 +1642,14 @@ def extend_subscripts(pycode_as_deque: deque) -> deque:
         if isinstance(item, deque):
             new_item = extend_subscripts(item)  # recursion!
             swapped_deque.append(new_item)
-        elif isinstance(item, str) and "_" in item and not "\\int" in item:
+        elif isinstance(item, str) and "_" in item and "\\int" not in item:
             if "\\mathrm{" in item:
                 discount = 1
             new_item = ""
             for char in item:
+                new_item += char
                 if char == "_":
-                    new_item += char
                     new_item += "{"
-                else:
-                    new_item += char
             num_braces = new_item.count("{") - discount
 
             new_item += "}" * num_braces
@@ -1731,7 +1679,7 @@ def swap_frac_divs(code: deque) -> deque:
             new_item = f"{ops}{a}"
             swapped_deque.append(new_item)
             swapped_deque.append(swap_frac_divs(item))  # recursion!
-        elif code[next_idx] == "/" and not isinstance(item, deque):
+        elif code[next_idx] == "/":
             new_item = f"{ops}{a}"
             swapped_deque.append(new_item)
             swapped_deque.append(item)
@@ -1772,24 +1720,18 @@ def swap_math_funcs(pycode_as_deque: deque, calc_results: dict) -> deque:
                 item = insert_func_braces(item)
                 new_item = swap_math_funcs(item, calc_results)
                 swapped_deque.append(new_item)
-            elif poss_func_name == func_name_match:
-                # Begin checking for specialized function names
-                if poss_func_name == "quad":
-                    new_item = swap_integrals(item, calc_results)
-                    # new_item = swap_math_funcs(item, calc_results)
-                    swapped_deque.append(new_item)
-                elif poss_func_name == "log":
-                    pass
-                else:
-                    ops = "\\operatorname"
-                    new_func = f"{ops}{a}{poss_func_name}{b}"
-                    item = swap_func_name(item, poss_func_name, new_func)
-                    if not test_for_typ_arithmetic:
-                        item = insert_func_braces(item)
-                    new_item = swap_math_funcs(item, calc_results)
-                    swapped_deque.append(new_item)
-            else:
-                swapped_deque.append(item)
+            elif poss_func_name == "quad":
+                new_item = swap_integrals(item, calc_results)
+                # new_item = swap_math_funcs(item, calc_results)
+                swapped_deque.append(new_item)
+            elif poss_func_name != "log":
+                ops = "\\operatorname"
+                new_func = f"{ops}{a}{poss_func_name}{b}"
+                item = swap_func_name(item, poss_func_name, new_func)
+                if not test_for_typ_arithmetic:
+                    item = insert_func_braces(item)
+                new_item = swap_math_funcs(item, calc_results)
+                swapped_deque.append(new_item)
         else:
             swapped_deque.append(item)
     return swapped_deque
@@ -1880,15 +1822,14 @@ def swap_py_operators(pycode_as_deque: deque) -> deque:
         if type(item) is deque:
             new_item = swap_py_operators(item)  # recursion!
             swapped_deque.append(new_item)
+        elif item == "*":
+            swapped_deque.append("\\cdot")
+        elif item == "%":
+            swapped_deque.append("\\bmod")
+        elif item == ",":
+            swapped_deque.append(",\\ ")
         else:
-            if item == "*":
-                swapped_deque.append("\\cdot")
-            elif item == "%":
-                swapped_deque.append("\\bmod")
-            elif item == ",":
-                swapped_deque.append(",\\ ")
-            else:
-                swapped_deque.append(item)
+            swapped_deque.append(item)
     return swapped_deque
 
 
@@ -1956,10 +1897,9 @@ def swap_comparison_ops(pycode_as_deque: deque) -> deque:
     for item in pycode_as_deque:
         if type(item) is deque:
             new_item = swap_comparison_ops(item)
-            swapped_deque.append(new_item)
         else:
             new_item = py_ops.get(item, item)
-            swapped_deque.append(new_item)
+        swapped_deque.append(new_item)
     return swapped_deque
 
 
@@ -1980,7 +1920,7 @@ def swap_superscripts(pycode_as_deque: deque) -> deque:
         next_idx = min(idx + 1, len(pycode_as_deque) - 1)
         next_item = pycode_as_deque[next_idx]
         if isinstance(item, deque) and not close_bracket_token:
-            if "**" == str(next_item):
+            if str(next_item) == "**":
                 pycode_with_supers.append(l_par)
                 new_item = swap_superscripts(item)
                 pycode_with_supers.append(new_item)
@@ -1988,24 +1928,23 @@ def swap_superscripts(pycode_as_deque: deque) -> deque:
             else:
                 new_item = swap_superscripts(item)  # recursion!
                 pycode_with_supers.append(new_item)
-            
+
+        elif str(next_item) == "**":
+            pycode_with_supers.append(l_par)
+            pycode_with_supers.append(item)
+            pycode_with_supers.append(r_par)
+        elif str(item) == "**":
+            new_item = f"{ops}{a}"
+            pycode_with_supers.append(new_item)
+            close_bracket_token = True
+        elif close_bracket_token:
+            pycode_with_supers.append(item)
+            new_item = f"{b}"
+            pycode_with_supers.append(new_item)
+            close_bracket_token = False
         else:
-            if "**" == str(next_item):
-                pycode_with_supers.append(l_par)
-                pycode_with_supers.append(item)
-                pycode_with_supers.append(r_par)
-            elif str(item) == "**":
-                new_item = f"{ops}{a}"
-                pycode_with_supers.append(new_item)
-                close_bracket_token = True
-            elif close_bracket_token:
-                pycode_with_supers.append(item)
-                new_item = f"{b}"
-                pycode_with_supers.append(new_item)
-                close_bracket_token = False
-            else:
-                pycode_with_supers.append(item)
-                prev_item = item
+            pycode_with_supers.append(item)
+            prev_item = item
 
     return pycode_with_supers
 
@@ -2020,17 +1959,15 @@ def swap_for_greek(pycode_as_deque: deque) -> deque:
     for item in pycode_as_deque:
         if isinstance(item, deque):
             new_item = swap_for_greek(item)
-            swapped_deque.append(new_item)
         elif "_" in str(item):
             components = item.split("_")
             swapped_components = [
                 greek_chainmap.get(component, component) for component in components
             ]
             new_item = "_".join(swapped_components)
-            swapped_deque.append(new_item)
         else:
             new_item = greek_chainmap.get(item, item)
-            swapped_deque.append(new_item)
+        swapped_deque.append(new_item)
     return swapped_deque
 
 
@@ -2055,13 +1992,8 @@ def test_for_long_var_strs(elem: Any) -> bool:
     components = elem.replace("'", "").split("_")
     if len(components) != 1:
         top_level, *_remainders = components
-        if len(top_level) == 1:
-            return False
-        else:
-            return True
-    if len(components[0]) == 1:
-        return False
-    return True
+        return len(top_level) != 1
+    return len(components[0]) != 1
 
 
 def swap_long_var_strs(pycode_as_deque: deque) -> deque:
@@ -2153,9 +2085,7 @@ def test_for_unary(d: deque) -> bool:
     False otherwise.
     """
     ops = "+ -".split()
-    if len(d) == 2 and d[0] in ops:
-        return True
-    return False
+    return len(d) == 2 and d[0] in ops
 
 
 def test_for_typ_arithmetic(d: deque) -> bool:
@@ -2249,9 +2179,7 @@ def insert_arithmetic_parentheses(d: deque) -> deque:
     rpar = "\\right)"
     swapped_deque = deque([])
     last = len(d) - 1
-    exp_check = False
-    if last > 1:
-        exp_check = d[1] == "**" # Don't double up parenth on exponents
+    exp_check = d[1] == "**" if last > 1 else False
     for idx, item in enumerate(d):
         if idx == 0 and not exp_check:
             swapped_deque.append(lpar)

@@ -80,8 +80,7 @@ def remove_imports_defs_and_globals(source: str):
 @handcalc()
 def func_1(x, y):
     a = 2 * x
-    b = 3 * a + y
-    return b
+    return 3 * a + y
 
 
 @handcalc(jupyter_display=True)
@@ -1396,9 +1395,15 @@ def test_func_name():
 def test_swap_math_funcs():
     assert handcalcs.handcalcs.swap_math_funcs(
         deque(
-            ["z", "=", deque(["double", "\\left(", deque(["a", "/", "b"]), "\\right)"])]
+            [
+                "z",
+                "=",
+                deque(
+                    ["double", "\\left(", deque(["a", "/", "b"]), "\\right)"]
+                ),
+            ]
         ),
-        dict(),
+        {},
     ) == deque(
         [
             "z",
@@ -1414,11 +1419,15 @@ def test_swap_math_funcs():
         ]
     )
     assert handcalcs.handcalcs.swap_math_funcs(
-        deque(["rate", "=", deque(["sin", "\\left(", "a", "\\right)"])]), dict()
-    ) == deque(["rate", "=", deque(["\\sin", "{", "\\left(", "a", "\\right)", "}"])])
+        deque(["rate", "=", deque(["sin", "\\left(", "a", "\\right)"])]), {}
+    ) == deque(
+        ["rate", "=", deque(["\\sin", "{", "\\left(", "a", "\\right)", "}"])]
+    )
     assert handcalcs.handcalcs.swap_math_funcs(
-        deque(["test", "=", deque(["sqrt", deque(["b", "+", "b"])])]), dict()
-    ) == deque(["test", "=", deque(["\\sqrt", "{", deque(["b", "+", "b"]), "}"])])
+        deque(["test", "=", deque(["sqrt", deque(["b", "+", "b"])])]), {}
+    ) == deque(
+        ["test", "=", deque(["\\sqrt", "{", deque(["b", "+", "b"]), "}"])]
+    )
 
 
 def test_test_for_typ_arithmetic():

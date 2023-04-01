@@ -36,7 +36,9 @@ def install_latex(swap_in: str = "", swap_out: str = "article.tplx", restore: bo
         restore_swapped(swap_out, nbconvert_templates_dir)
         return
 
-    swapped_name = pathlib.Path(swap_out).stem + "_swapped" + pathlib.Path(swap_out).suffix
+    swapped_name = (
+        f"{pathlib.Path(swap_out).stem}_swapped{pathlib.Path(swap_out).suffix}"
+    )
     if (nbconvert_templates_dir / swapped_name).exists() and swap_in:
         print(f"Cannot install {swap_in} because {swapped_name} has not been restored.\n"
                "Run this function again with restore=True first.")
@@ -77,7 +79,9 @@ def install_html(swap_in: str = "", swap_out: str = "full.tpl", restore: bool = 
         restore_swapped(swap_out, nbconvert_templates_dir)
         return
 
-    swapped_name = pathlib.Path(swap_out).stem + "_swapped" + pathlib.Path(swap_out).suffix
+    swapped_name = (
+        f"{pathlib.Path(swap_out).stem}_swapped{pathlib.Path(swap_out).suffix}"
+    )
     if (nbconvert_templates_dir / swapped_name).exists() and swap_in:
         print(f"Cannot install {swap_in} because {swapped_name} has not been restored.\n"
                "Run this function again with restore=True first.")
@@ -110,7 +114,7 @@ def restore_swapped(swap_file: pathlib.Path, nbconvert_templates_dir: pathlib.Pa
     """
     swap_file is an absolute path
     """
-    swapped_name = pathlib.Path(swap_file).stem + "_swapped" + pathlib.Path(swap_file).suffix
+    swapped_name = f"{pathlib.Path(swap_file).stem}_swapped{pathlib.Path(swap_file).suffix}"
     if (nbconvert_templates_dir / swapped_name).exists():
         if (nbconvert_templates_dir / swap_file).exists(): 
             os.remove(nbconvert_templates_dir / swap_file)
